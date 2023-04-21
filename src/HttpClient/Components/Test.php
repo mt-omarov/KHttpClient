@@ -18,7 +18,11 @@ class Test implements HttpClientInterface
     public static function testing()
     {
         $url = "https://www.notion.so/35dedf7c4e4b4552becf52671ad53d85";
-        var_dump(self::prepareRequest("GET", $url, self::$defaultOptions, self::$defaultOptions));
+        //var_dump(self::prepareRequest("GET", $url, self::$defaultOptions, self::$defaultOptions));
+        var_dump(self::mergeQueryString(null, [], true));
+        var_dump(self::parseUrl($url));
+        var_dump(self::normalizeHeaders(['smth']));
+        var_dump(self::mergeDefaultOptions(self::$defaultOptions, []));
     }
 
     public  static function getDefinedKPHP($filename = __DIR__.'/../../_functions.txt') {

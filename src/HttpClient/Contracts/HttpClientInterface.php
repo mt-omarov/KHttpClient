@@ -4,6 +4,7 @@ namespace Kaa\HttpClient\Contracts;
 
 interface HttpClientInterface
 {
+    /** @var mixed */
     public const OPTIONS_DEFAULTS = [
         'auth_basic' => null,   // array|string - an array containing the username as first value, and optionally the
                                 //   password as the second one; or string like username:password - enabling HTTP Basic

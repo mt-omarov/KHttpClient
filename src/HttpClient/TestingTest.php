@@ -3,9 +3,7 @@
 require_once __DIR__ . "/../../vendor/autoload.php";
 use Kaa\HttpClient\Components\Test;
 
-//Test::testing();
-
-var_dump(curl_multi_init());
+Test::testing();
 
 //Test::phpPredefinedToFile();
 //foreach (Test::getDefinedKPHP() as $n){

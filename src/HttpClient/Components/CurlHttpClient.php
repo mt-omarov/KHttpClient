@@ -14,6 +14,8 @@ class CurlHttpClient implements HttpClientInterface
         ],
     ];
     private static array $emptyDefaults = self::OPTIONS_DEFAULTS + ['auth_ntlm' => null];
+    //private $multi;
+    //private static $curlVersion;
 
     public function __construct(array $defaultOptions = [], int $maxHostConnections = 6, int $maxPendingPushes = 50)
     {
