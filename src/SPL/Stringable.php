@@ -1,5 +1,6 @@
 <?php
-namespace Kaa\HttpClient\Contracts;
+
+namespace SPL;
 
 interface Stringable
 {

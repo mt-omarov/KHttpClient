@@ -1,4 +1,5 @@
 <?php
+define('STREAM_FILTER_WRITE', 2);
 define('JSON_HEX_TAG', 1);
 define('JSON_HEX_AMP', 2);
 define('JSON_HEX_APOS', 4);

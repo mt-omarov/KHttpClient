@@ -2,7 +2,7 @@
   "name": "kaa/httpclient",
   "autoload": {
     "psr-4": {
-      "Kaa\\": "src"
+      "Kaa\\": "src", "SPL\\": "src/SPL"
     }
   }
 }

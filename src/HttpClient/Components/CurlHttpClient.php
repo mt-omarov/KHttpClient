@@ -2,23 +2,21 @@
 
 namespace Kaa\HttpClient\Components;
 use Kaa\HttpClient\Contracts\HttpClientInterface;
+use Kaa\HttpClient\Components\HttpClientTrait;
+use Kaa\HttpClient\Components\CurlClientState;
+use kCurl\HttpClient\Contracts\ResponseInterface;
 
-class CurlHttpClient implements HttpClientInterface
+class CurlHttpClient extends HttpClientTrait implements HttpClientInterface
 {
-    use HttpClientTrait;
-
-    private array $defaultOptions = self::OPTIONS_DEFAULTS + [
-        'auth_ntlm' => null, // array|string - an array containing the username as first value, and optionally the
-        'extra' => [
-            'curl' => [],
-        ],
-    ];
-    private static array $emptyDefaults = self::OPTIONS_DEFAULTS + ['auth_ntlm' => null];
-    //private $multi;
-    //private static $curlVersion;
-
-    public function __construct(array $defaultOptions = [], int $maxHostConnections = 6, int $maxPendingPushes = 50)
+    private Options $defaultOptions;
+    public function __construct(?Options $defaultOptions, int $maxHostConnections = 6, int $maxPendingPushes = 50)
     {
+        $this->defaultOptions = new Options();
+        $this->defaultOptions->setExtra(['curl'=>[]]);
 
+        if ($defaultOptions) {
+            [, $this->defaultOptions] = self::prepareRequest(null, null, $defaultOptions, $this->$defaultOptions);
+        }
+        $this->multi = new CurlClientState($maxHostConnections, $maxPendingPushes);
     }
 }

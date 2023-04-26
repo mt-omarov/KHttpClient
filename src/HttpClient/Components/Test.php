@@ -2,27 +2,19 @@
 
 namespace Kaa\HttpClient\Components;
 use Kaa\HttpClient\Contracts\HttpClientInterface;
+use Kaa\HttpClient\Components\HttpClientTrait;
 
-class Test implements HttpClientInterface
+class Test extends HttpClientTrait implements HttpClientInterface
 {
-    use HttpClientTrait;
-
-    private static array $defaultOptions = self::OPTIONS_DEFAULTS + [
-        'auth_ntlm' => null, // array|string - an array containing the username as first value, and optionally the
-        'extra' => [
-            'curl' => [],
-        ],
-    ];
-    private static array $emptyDefaults = self::OPTIONS_DEFAULTS + ['auth_ntlm' => null];
-
     public static function testing()
     {
         $url = "https://www.notion.so/35dedf7c4e4b4552becf52671ad53d85";
         //var_dump(self::prepareRequest("GET", $url, self::$defaultOptions, self::$defaultOptions));
-        var_dump(self::mergeQueryString(null, [], true));
-        var_dump(self::parseUrl($url));
-        var_dump(self::normalizeHeaders(['smth']));
-        var_dump(self::mergeDefaultOptions(self::$defaultOptions, []));
+//        var_dump(self::mergeQueryString('', [], true));
+//        var_dump(self::parseUrl($url));
+//        var_dump(self::normalizeHeaders(['smth']));
+        (self::mergeDefaultOptions(new Options(), new Options()))->printOptions();
+        (self::prepareRequest(null ,null, new Options(), null))->printOptions();
     }
 
     public  static function getDefinedKPHP($filename = __DIR__.'/../../_functions.txt') {

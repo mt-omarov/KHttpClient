@@ -3,3 +3,4 @@ vendor/
 composer.lock
 .idea/
 kphp_out/
+DopTest.php

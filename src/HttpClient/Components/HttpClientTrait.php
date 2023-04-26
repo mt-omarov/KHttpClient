@@ -1,237 +1,264 @@
 <?php
 namespace Kaa\HttpClient\Components;
+use Kaa\HttpClient\Components\Exception\InvalidArgumentException;
+use Kaa\HttpClient\Components\Exception\TransportException;
+
 require_once __DIR__.'/PredefinedConstants.php';
-trait HttpClientTrait
+
+class HttpClientTrait
 {
     public static int $CHUNK_SIZE = 16372;
+    private static Options $emptyDefaults;
 
-//    private static function prepareRequest(?string $method, ?string $url, array $options, array $defaultOptions = [], bool $allowExtraOptions = false): array
-//    {
-//        // если название метода указано, проверяется его корректность
-//        if (null !== $method) {
-//            // здесь проверяется, что метод содержит только буквы верхнего регистра
-//            if (\strlen($method) !== strspn($method, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ')) {
-//                throw new \Exception(sprintf('Invalid HTTP method "%s", only uppercase letters are accepted.', $method));
-//            }
-//            if (!$method) {
-//                throw new \Exception('The HTTP method cannot be empty.');
-//            }
-//        }
-//        // тут происходит склеивание передаваемых опций с опциями по умолчанию, валидация и парсинг url-запроса и обработка исключений.
-//        $options = self::mergeDefaultOptions($options, $defaultOptions, $allowExtraOptions);
-//
-//        if (isset($options['json'])) {
-//            if (isset($options['body']) && '' !== $options['body']) {
-//                throw new \Exception('Define either the "json" or the "body" option, setting both is not supported.');
-//            }
-//            $options['body'] = self::jsonEncode($options['json']);
-//            unset($options['json']);
-//
-//            if (!isset($options['normalized_headers']['content-type'])) {
-//                $options['normalized_headers']['content-type'] = ['Content-Type: application/json'];
-//            }
-//        }
-//
-//        if (!isset($options['normalized_headers']['accept'])) {
-//            $options['normalized_headers']['accept'] = ['Accept: */*'];
-//        }
-//        return $options;
-//    }
-
-//    private static function jsonEncode(mixed $value, int $flags = null, int $maxDepth = 512): string
-//    {
-//        $flags ??= JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_PRESERVE_ZERO_FRACTION;
-//
-//        $value = json_encode($value, $flags | JSON_THROW_ON_ERROR);
-//        if ($value === false){
-//            throw new \Exception("Ошибка при декодировании JSON");
-//        }
-//        return $value;
-//    }
-
-    // не работает
     /**
-     * @param mixed $options
-     * @param mixed $defaultOptions
+     * @param ?string $method
+     * @param ?string $url
+     * @param Options $options
+     * @param ?Options $defaultOptions
      * @param bool $allowExtraOptions
-     * @return mixed
-     * @throws \Exception
+     * @return Options
      */
-    public static function mergeDefaultOptions(array $options, array $defaultOptions, bool $allowExtraOptions = false): array
+    public static function prepareRequest(?string $method, ?string $url, Options $options, ?Options $defaultOptions, bool $allowExtraOptions = false): Options
     {
-        // сохраняется переформатированный массив передаваемых данных с помощью функции normalizedHeaders
-        $options['normalized_headers'] = self::normalizeHeaders($options['headers'] ?? []);
+        self::$emptyDefaults = new Options();
 
-        // Если основной массив данных определён, не равен false и null,
-        // то ранее созданный массив объединяется с нормализованными по тому же правилу записями основного массива опций.
-        // Причем при совпадающих ключах правый массив игнорируется.
-
-        if ($defaultOptions['headers'] === []) {
-            $options['normalized_headers'] += self::normalizeHeaders($defaultOptions['headers']);
+        if (null !== $method) {
+            // здесь проверяется, что метод содержит только буквы верхнего регистра
+            if (\strlen($method) !== strspn($method, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ')) {
+                throw new InvalidArgumentException(sprintf('Invalid HTTP method "%s", only uppercase letters are accepted.', $method));
+            }
+            if (!$method) {
+                throw new InvalidArgumentException('The HTTP method cannot be empty.');
+            }
         }
-        return $defaultOptions['normalized_headers'];
 
-        // объединяет все подмассивы в один общий
-        //$options['headers'] = array_merge(...array_values($options['normalized_headers'])) ?: [];
+        if ($defaultOptions){
+            $options = self::mergeDefaultOptions($options, $defaultOptions, $allowExtraOptions);
+        }
 
-//        /** @var mixed $mergedHeaders */
-//        $mergedHeaders = [];
-//
-//        /**
-//         * @param mixed ...$arrays
-//         * @return string[]
-//         */
-//        $strArrayMerge = function(...$arrays): array{
-//            /** @var string[] $result */
-//            $result = [];
-//            foreach ($arrays as $array){
-//                foreach ($array as $k => $v){
-//                    if (is_int($k)){
-//                        $result[] = (string)$v;
-//                    }
-//                    elseif (is_string($k)){
-//                        $result[$k] = (string)$v;
-//                    }
-//                }
-//            }
-//            return $result;
-//        };
-//        foreach ($options['normalized_headers'] as $headerArray) {
-//            //$mergedHeaders = array_merge($mergedHeaders, $headerArray);
-//            $mergedHeaders = $strArrayMerge($mergedHeaders, $headerArray);
-//        }
-//        $options['headers'] = $mergedHeaders ?: [];
-//
-//        // resolve определяет, нужно ли cURL автоматически преобразовывать доменное имя хоста в IP-адрес.
-//        // resolve может содержать список доменных имен и соответствующих им IP-адресов.
-//        // Подобная информация, судя по всему, позволяет ускорить подключение.
-//        if ($resolve = $options['resolve'] ?? false) {
-//            $options['resolve'] = [];
-//            foreach ($resolve as $k => $v) {
-//                // Через parseUrl происходит разбиение url-адреса на части, его валидация, склеивание
-//                // передаваемых параметров с основными, а в конце возврат преобразованного url-адреса по частям
-//                // в качестве словаря.
-//                // В данном случае с помощью ключа 'authority' функция возвращает часть url-запроса, содержащего:
-//                // если есть сам хост, имя и пароль: username+password+host,
-//                // если есть хост и имя, но пароля нет: username+host,
-//                // если есть хост, нет имени и пароля (или есть пароль и нет имени): host,
-//                // если нет хоста: null.
-//                // Через substr(url, 2) в качестве ключа будет использоваться запись "username+pass+host", начиная с 3го символа.
-//                // В результате в массиве $options['resolve'] под ключом доменного имени будет записан IP-адрес сети.
-//                $options['resolve'][substr(self::parseUrl('http://'.$k)['authority'], 2)] = (string) $v;
-//            }
-//        }
-//
-//        // Option "query" is never inherited from defaults
-//        $options['query'] ??= [];
-//
-//        // объединение массивов
-//        $options += $defaultOptions;
-//
-//        // если в полученном массиве данных есть пустые поля, они заполняются из массива emptyDefaults
-//        if (self::$emptyDefaults) {
-//            foreach (self::$emptyDefaults as $k => $v) {
-//                if (!isset($options[$k])) {
-//                    $options[$k] = $v;
-//                }
-//            }
-//        }
-//
-//        if (isset($defaultOptions['extra'])) {
-//            $options['extra'] += $defaultOptions['extra'];
-//        }
-//
-//        // если расшифровка доменных имен доступна и для массива по умолчанию, то объединенный массив
-//        // доменных имен и их IP обновляется.
-//        if ($resolve = $defaultOptions['resolve'] ?? false) {
-//            foreach ($resolve as $k => $v) {
-//                $options['resolve'] += [substr(self::parseUrl('http://'.$k)['authority'], 2) => (string) $v];
-//            }
-//        }
-//
-//        if ($allowExtraOptions || !$defaultOptions) {
-//            return $options;
-//        }
-//
-//        // Look for unsupported options
-//        foreach ($options as $name => $v) {
-//            if (\array_key_exists($name, $defaultOptions) || 'normalized_headers' === $name) {
-//                continue;
-//            }
-//
-//            // эту часть кода надо переписать
-//            if ('auth_ntlm' === $name) {
-//                $msg = 'try using "%s" instead.';
-//                throw new \Exception(sprintf('Option "auth_ntlm" is not supported by "%s", '.$msg, __CLASS__, CurlHttpClient::class));
-//            }
-//
-//            if ('vars' === $name) {
-//                throw new \Exception(sprintf('Option "vars" is not supported by "%s"', __CLASS__));
-//            }
-//
-//            $alternatives = [];
-//
-//            foreach ($defaultOptions as $k => $val) {
-//                if (levenshtein($name, $k) <= \strlen($name) / 3 || strpos($k, $name) !== false) {
-//                    $alternatives[] = $k;
-//                }
-//            }
-//
-//            throw new \Exception(sprintf('Unsupported option "%s" passed to "%s", did you mean "%s"?', $name, __CLASS__, implode('", "', $alternatives ?: array_keys($defaultOptions))));
-//        }
-//
-//        return $options;
-//        return $defaultOptions['normalized_headers'];
+        if (Options::isset($options->getJson())) {
+            if (Options::isset($options->getBody()) && '' !== $options->getBody()) {
+                throw new InvalidArgumentException('Define either the "json" or the "body" option, setting both is not supported.');
+            }
+            $options->setBody(self::jsonEncode($options->getJson()));
+            $options->setJson('');
+
+            if (!Options::isset($options->getNormalizedHeader('content-type'))) {
+                $options->setNormalizedHeader('content-type', ['Content-Type: application/json']);
+            }
+        }
+
+        if (!Options::isset($options->getNormalizedHeader('accept'))) {
+            $options->setNormalizedHeader('accept', ['Accept: */*'] );
+        }
+
+        if (Options::isset($options->getBody())) {
+            if (
+                \is_array($options->getBody())
+                && (!is_bool($nHeaderContentType = $options->getNormalizedHeader('content-type')) ? (
+                    $nHeaderContentType !== [] ? (
+                        Options::isset($nHeaderContentType[0])
+                        || !strpos($nHeaderContentType[0], 'application/x-www-form-urlencoded')
+                    ) : true
+                ) : true)
+            ) {
+                $options->setNormalizedHeader('content-type', ['Content-Type: application/x-www-form-urlencoded']);
+            }
+
+            #ifndef KPHP
+            if (is_string($body = $options->getBody())
+                && ((string) strlen($body) !== substr(($h = !is_bool($nHeaderContentType) ? ($nHeaderContentType !== [] ? (Options::isset($nHeaderContentType[0]) ? $nHeaderContentType[0] : ''): '') : ''), 16))
+                && ('' !== $h || '' !== $body)
+            ) {
+                if ('chunked' === substr((!is_bool($nTransferEncoding = $options->getNormalizedHeader('transfer-encoding')) ? ($nTransferEncoding !== [] ? (Options::isset($nTransferEncoding[0]) ? $nTransferEncoding[0] : ''): '') : ''), \strlen('Transfer-Encoding: '))){
+                    $options->setNormalizedHeader('transfer-encoding', []);
+                    $options->setBody(self::dechunk($body));
+                }
+
+                $options->setNormalizedHeader('content-length', [substr_replace($h ?: 'Content-Length: ', \strlen($options->getBody()), 16)]);
+            }
+            #endif
+        }
+
+        if (Options::isset($peerFingerprint = $options->getPeerFingerprint())){
+            $options->setPeerFingerprint(self::normalizePeerFingerprint($peerFingerprint));
+        }
+
+        if (Options::isset($options->getAuthBearer())){
+            if (preg_match('{[^\x21-\x7E]}', $options['auth_bearer'])) {
+                throw new InvalidArgumentException('Invalid character found in option "auth_bearer": '.json_encode($options['auth_bearer']).'.');
+            }
+        }
+
+        if (Options::isset($options->getAuthBasic()) && Options::isset($options->getAuthBearer())) {
+            throw new InvalidArgumentException('Define either the "auth_basic" or the "auth_bearer" option, setting both is not supported.');
+        }
+
+
+
+
+        return $options;
     }
 
-    // работает
-    // наложил ограничения: в функцию в качестве заголовков могут передаваться только строковые типы данных
-    /**
-     * @param mixed $headers
-     * @return mixed
-     * @throws \Exception
-     */
-    public static function normalizeHeaders(array $headers)
+    /** @return mixed */
+    private static function normalizePeerFingerprint(mixed $fingerprint): array
     {
-        /** @var mixed $normalizedHeaders */
-        $normalizedHeaders = [];
-        foreach ($headers as $name => $values) {
-            // если ключ является числом и при этом $value является строкой, нужно вытащить название поля из строки $value
-            if (\is_int($name)) {
-                if (!\is_string($values)) {
-                    throw new \Exception(sprintf('Invalid value for header "%s": expected string, "%s" given.', $name, "string[]"));
-                }
-                [$name, $values] = explode(':', $values, 2);
-                $values = [(string)ltrim($values)];
+        if (\is_string($fingerprint)) {
+            switch (\strlen($fingerprint = str_replace(':', '', $fingerprint))) {
+                case (32):
+                    $fingerprint = ['md5' => $fingerprint];
+                    break;
+                case (40):
+                    $fingerprint = ['sha1' => $fingerprint];
+                    break;
+                case (44):
+                    $fingerprint = ['pin-sha256' => [$fingerprint]];
+                    break;
+                case (64):
+                    $fingerprint = ['sha256' => $fingerprint];
+                    break;
+                default:
+                    throw new InvalidArgumentException(sprintf('Cannot auto-detect fingerprint algorithm for "%s".', $fingerprint));
             }
-            if (is_array($values)){
-                if (!\is_string($values[0])){
-                    throw new \Exception(sprintf('Invalid value for header "%s": expected string or string[].', $name));
-                }
+        } elseif (\is_array($fingerprint)) {
+            foreach ($fingerprint as $algo => $hash) {
+                $fingerprint[$algo] = 'pin-sha256' === $algo ? (array) $hash : str_replace(':', '', $hash);
             }
+        } else {
+            throw new InvalidArgumentException(sprintf('Option "peer_fingerprint" must be string or array, "%s" given.', gettype($fingerprint)));
+        }
 
-            // далее мы перезаписываем элемент словаря "$name: [$value's]" по следующему правилу:
+        return $fingerprint;
+    }
+
+    #ifndef KPHP
+    private static function dechunk(string $body): string
+    {
+        $h = fopen('php://temp', 'w+');
+        stream_filter_append($h, 'dechunk', \STREAM_FILTER_WRITE);
+        fwrite($h, $body);
+        $body = stream_get_contents($h, -1, 0);
+        rewind($h);
+        ftruncate($h, 0);
+
+        if (fwrite($h, '-') && '' !== stream_get_contents($h, -1, 0)) {
+            throw new TransportException('Request body has broken chunked encoding.');
+        }
+
+        return $body;
+    }
+    #endif
+
+    private static function jsonEncode(mixed $value, int $flags = null): string
+    {
+        $flags ??= \JSON_HEX_TAG | \JSON_HEX_APOS | \JSON_HEX_AMP | \JSON_HEX_QUOT | \JSON_PRESERVE_ZERO_FRACTION;
+        $nValue = json_encode($value, $flags | \JSON_THROW_ON_ERROR);
+        if (is_bool($nValue)){
+            throw new InvalidArgumentException('Invalid value for "json" option:' .$value);
+        }
+
+        return $nValue;
+    }
+
+    public static function mergeDefaultOptions(Options $options, Options $defaultOptions, bool $allowExtraOptions = false): Options
+    {
+        $options->setNormalizedHeaders(self::normalizeHeaders($options->getHeaders()));
+
+        if (Options::isset($defaultOptions->getHeaders())) {
+            $options->setNormalizedHeaders($options->getNormalizedHeaders() + self::normalizeHeaders($defaultOptions->getHeaders()));
+        }
+
+        /** @var array<int, array<string>> $tempHeaders */
+        $tempHeaders = array_values($options->getNormalizedHeaders());
+
+        /**
+         * @param array<int,string> ...$arrays
+         * @return array<int, string>
+         */
+        $mergeHeaders = static function(...$arrays) {
+            $result = array();
+            foreach ($arrays as $array) {
+                foreach ($array as $key => $value) {
+                    if (is_int($key)) {
+                        $result[] = $value;
+                    } else {
+                        $result[$key] = $value;
+                    }
+                }
+            }
+            return $result;
+        };
+
+        $options->setHeaders($mergeHeaders(...$tempHeaders ?: [[]]));
+
+        if (Options::isset($resolve = $options->getResolve())) {
+            $options->setResolve([]);
+            foreach ($resolve as $k => $v) {
+                // Через parseUrl происходит разбиение url-адреса на части, его валидация, склеивание
+                // передаваемых параметров с основными, а в конце возврат преобразованного url-адреса по частям
+                // в качестве словаря.
+                // В данном случае с помощью ключа 'authority' функция возвращает часть url-запроса, содержащего:
+                // если есть сам хост, имя и пароль: username+password+host,
+                // если есть хост и имя, но пароля нет: username+host,
+                // если есть хост, нет имени и пароля (или есть пароль и нет имени): host,
+                // если нет хоста: null.
+                // Через substr(url, 2) в качестве ключа будет использоваться запись "username+pass+host", начиная с 3го символа.
+                // В результате в массиве $options['resolve'] под ключом доменного имени будет записан IP-адрес сети.
+                $key = substr((string)self::parseUrl('http://'.$k)['authority'], 2);
+                if (is_bool($key)){
+                    throw new InvalidArgumentException("Ошибка при работе parseUrl() для ключа " . $k);
+                }
+                $options->addToResolve($key, $v);
+            }
+        }
+
+        if (!Options::isset($options->getQuery()))
+            $options->setQuery([]);
+
+        $options = Options::mergeOptions($options, $defaultOptions);
+        if (isset(self::$emptyDefaults))
+            $options = Options::mergeOptions($options, self::$emptyDefaults);
+
+        if (Options::isset($tempExtra = $defaultOptions->getExtra())) {
+            $options->setExtra($options->getExtra() + $tempExtra);
+        }
+
+        return $options;
+    }
+
+    /**
+     * @param array<string, string> $headers
+     * @return array<string, array<string>>
+     */
+    private static function normalizeHeaders(array $headers): array
+    {
+        /** @var array<string, array<string>> $normalizedHeaders */
+        $normalizedHeaders = [[]];
+
+        foreach ($headers as $name => $values) {
+            // мы перезаписываем элемент словаря "$name: [$value's]" по следующему правилу:
             // $name: [$name: $value, $name: $value и т.д.]
             $lcName = strtolower($name);
             $normalizedHeaders[$lcName] = [];
 
-            foreach ($values as $value) {
+            foreach ([$values] as $value) {
                 $normalizedHeaders[$lcName][] = $value = $name.': '.$value;
 
                 if (\strlen($value) !== strcspn($value, "\r\n\0")) {
-                    // throw new InvalidArgumentException(sprintf('Invalid header: CR/LF/NUL found in "%s".', $value));
-                    throw new \Exception("Invalid header");
+                    throw new InvalidArgumentException(sprintf('Invalid header: CR/LF/NUL found in "%s".', $value));
                 }
             }
         }
+
         return $normalizedHeaders;
     }
 
-    // работает
+
+    //работает
     /**
      * @param string $url
-     * @param ?string[] $query
-     * @param int[] $allowedSchemes
+     * @param array<string> $query
+     * @param array<string, int> $allowedSchemes
      * @return mixed
      * @throws \Exception
      */
@@ -242,14 +269,14 @@ trait HttpClientTrait
         $parts = parse_url($url);
         if (false === $parts) {
             // throw new InvalidArgumentException(sprintf('Malformed URL "%s".', $url));
-            throw new \Exception("Malformed URL.");
+            throw new InvalidArgumentException("Malformed URL.");
         }
 
         // Если передаваемый параметр query существует, то мы перезаписываем часть url[query], объединяя эти два массива значений.
         // Ф-ция mergeQueryString вернёт строку параметров, которые, при наличии в обоих query очередях, будут перезаписаны из
         // передаваемого массива параметров $query. Им отдаётся предпочтение, т.к. флаг replace установлен в true.
-        if ($query) {
-            $parts['query'] = self::mergeQueryString((string)$parts['query'] ?? null, $query, true);
+        if ($query !== []) {
+            $parts['query'] = self::mergeQueryString((string)$parts['query'] ?? '', $query, true);
         }
 
         // записываем значение порта или 0, если его нет в url-запросе
@@ -262,7 +289,7 @@ trait HttpClientTrait
             // если используемый параметр есть в словаре поддерживаемых протоколов, то всё ок, иначе ошибка
             if (!isset($allowedSchemes[$scheme = strtolower($scheme)])) {
                 // throw new InvalidArgumentException(sprintf('Unsupported scheme in "%s".', $url));
-                throw new \Exception("Unsupported scheme.");
+                throw new InvalidArgumentException("Unsupported scheme.");
             }
 
             // если ранее определенное значение порта из url совпадает с числом из словаря по ключу параметра schema,
@@ -308,12 +335,12 @@ trait HttpClientTrait
 
     // работает
     /**
-     * @param string|null $queryString
-     * @param (string[])|null $queryArray
+     * @param string $queryString
+     * @param string[] $queryArray
      * @param bool $replace
-     * @return string|null
+     * @return string
      */
-    public static function mergeQueryString(?string $queryString, array $queryArray, bool $replace): ?string
+    public static function mergeQueryString(string $queryString, array $queryArray, bool $replace): string
     {
         // данная функция используется при вызове конструктора для создания CurlClient.
         // она нужна при работе с определением IP-адреса доменного имени.
@@ -330,7 +357,7 @@ trait HttpClientTrait
 
         $query = [];
         // если изначальная строка query не пустая, нужно как-то её сложить в словарь для анализа
-        if (null !== $queryString) {
+        if ($queryString !== '') {
             // здесь мы разбиваем строку на массив по разделителям
             foreach (explode('&', $queryString) as $v) {
                 // только в случае, если полученная строка не является пустой
