@@ -94,9 +94,6 @@ class HttpClientTrait
             throw new InvalidArgumentException('Define either the "auth_basic" or the "auth_bearer" option, setting both is not supported.');
         }
 
-
-
-
         return $options;
     }
 
