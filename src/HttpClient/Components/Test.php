@@ -14,7 +14,8 @@ class Test extends HttpClientTrait implements HttpClientInterface
 //        var_dump(self::parseUrl($url));
 //        var_dump(self::normalizeHeaders(['smth']));
         (self::mergeDefaultOptions(new Options(), new Options()))->printOptions();
-        (self::prepareRequest(null ,null, new Options(), null))->printOptions();
+        [, $tOptions] = self::prepareRequest(null ,null, new Options(), new Options());
+        $tOptions->printOptions();
     }
 
     public  static function getDefinedKPHP($filename = __DIR__.'/../../_functions.txt') {

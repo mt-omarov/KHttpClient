@@ -3,6 +3,9 @@
 namespace Kaa\HttpClient\Components;
 class Options
 {
+
+    const NULL = null;
+
     static array $fields = [
         'authBasic', 'authBearer', 'query', 'headers', 'normalizedHeaders', 'proxy',
         'noProxy', 'timeOut', 'maxDuration', 'bindTo' , 'userData', 'maxRedirects',
@@ -39,7 +42,7 @@ class Options
     /** @var mixed $buffer */
     private $buffer = null;
 
-    /** @var ?Callable $onProgress  */
+    /** @var ?callable(mixed):mixed $onProgress  */
     private $onProgress = null;
 
     /** @var string[] $resolve */
@@ -47,10 +50,10 @@ class Options
     private string $json = '';
 
     /** @var mixed $body */
-    private $body = '';
+    private $body = null;
 
     /** @var mixed $extra */
-    private array $extra = [];
+    private ?array $extra = null;
 
     /** @var mixed $authNtml */
     private $authNtml = null;
@@ -69,7 +72,7 @@ class Options
     }
 
     /** @return mixed */
-    public function getExtra(): array
+    public function getExtra()
     {
         return $this->extra;
     }
@@ -99,17 +102,11 @@ class Options
         return $this;
     }
 
-    /**
-     * @return string
-     */
     public function getAuthBearer(): string
     {
         return $this->authBearer;
     }
 
-    /**
-     * @param string $authBearer
-     */
     public function setAuthBearer(string $authBearer): self
     {
         $this->authBearer = $authBearer;
@@ -133,51 +130,33 @@ class Options
         return $this;
     }
 
-    /**
-     * @return int
-     */
     public function getMaxRedirects(): int
     {
         return $this->maxRedirects;
     }
 
-    /**
-     * @param int $maxRedirects
-     */
     public function setMaxRedirects(int $maxRedirects): self
     {
         $this->maxRedirects = $maxRedirects;
         return $this;
     }
 
-    /**
-     * @return string
-     */
     public function getHttpVersion(): string
     {
         return $this->httpVersion;
     }
 
-    /**
-     * @param string $httpVersion
-     */
     public function setHttpVersion(string $httpVersion): self
     {
         $this->httpVersion = $httpVersion;
         return $this;
     }
 
-    /**
-     * @return string
-     */
     public function getBaseUri(): string
     {
         return $this->baseUri;
     }
 
-    /**
-     * @param string $baseUri
-     */
     public function setBaseUri(string $baseUri): self
     {
         $this->baseUri = $baseUri;
@@ -202,118 +181,71 @@ class Options
     }
 
     /**
-     * @return mixed
+     * @return ?callable(mixed):mixed
      */
-    public function getOnProgress(): mixed
+    public function getOnProgress()
     {
         return $this->onProgress;
     }
 
     /**
-     * @param mixed $onProgress
+     * @param ?callable(mixed):mixed $onProgress
      */
-    public function setOnProgress(mixed $onProgress): self
+    public function setOnProgress($onProgress): self
     {
         $this->onProgress = $onProgress;
         return $this;
     }
 
-    /**
-     * @return string
-     */
-    public function getUrl(): string
-    {
-        return $this->url;
-    }
-
-    /**
-     * @param string $url
-     */
-    public function setUrl(string $url): self
-    {
-        $this->url = $url;
-        return $this;
-    }
-
-    /**
-     * @return string
-     */
     public function getProxy(): string
     {
         return $this->proxy;
     }
 
-    /**
-     * @param string $proxy
-     */
     public function setProxy(string $proxy): self
     {
         $this->proxy = $proxy;
         return $this;
     }
 
-    /**
-     * @return string
-     */
     public function getNoProxy(): string
     {
         return $this->noProxy;
     }
 
-    /**
-     * @param string $noProxy
-     */
     public function setNoProxy(string $noProxy): self
     {
         $this->noProxy = $noProxy;
         return $this;
     }
 
-    /**
-     * @return float
-     */
     public function getTimeOut(): float
     {
         return $this->timeOut;
     }
 
-    /**
-     * @param float $timeOut
-     */
     public function setTimeOut(float $timeOut): self
     {
         $this->timeOut = $timeOut;
         return $this;
     }
 
-    /**
-     * @return float
-     */
     public function getMaxDuration(): float
     {
         return $this->maxDuration;
     }
 
-    /**
-     * @param float $maxDuration
-     */
     public function setMaxDuration(float $maxDuration): self
     {
         $this->maxDuration = $maxDuration;
         return $this;
     }
 
-    /**
-     * @return string
-     */
     public function getBindTo(): string
     {
         return $this->bindTo;
     }
 
-    /**
-     * @param string $bindTo
-     */
     public function setBindTo(string $bindTo): self
     {
         $this->bindTo = $bindTo;
@@ -375,14 +307,22 @@ class Options
     }
 
     /**
-     * @return array<string>|false
+     * @return ?array<string>
      */
-    public function getNormalizedHeader(string $key): array|false
+    public function getNormalizedHeader(string $key): ?array
     {
         if (array_key_exists($key, $this->normalizedHeaders)) {
             return $this->normalizedHeaders[$key];
         }
-        else return false;
+        else return self::NULL;
+    }
+
+    public function getElementNormalizedHeader(string $headerKey, int $key): ?string
+    {
+        if ($header = $this->getNormalizedHeader($headerKey)){
+            return array_key_exists($key, $header) ? $header[$key] : self::NULL;
+        }
+        else return self::NULL;
     }
 
     /** @return mixed */
@@ -493,7 +433,7 @@ class Options
                         $lOptions->setBuffer($rOptions->getBuffer());
                     break;
                 case ("onProgress"):
-                    if (!self::isset($lOptions->getOnProgress()))
+                    if (!$lOptions->getOnProgress())
                         $lOptions->setOnProgress($rOptions->getOnProgress());
                     break;
                 case ("resolve"):
@@ -588,7 +528,7 @@ class Options
                     var_dump($this->getBuffer());
                     break;
                 case ("onProgress"):
-                    var_dump($this->getOnProgress());
+                    //print(gettype($this->getOnProgress()));
                     break;
                 case ("resolve"):
                     var_dump($this->getResolve());

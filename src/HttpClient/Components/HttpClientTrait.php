@@ -16,9 +16,9 @@ class HttpClientTrait
      * @param Options $options
      * @param ?Options $defaultOptions
      * @param bool $allowExtraOptions
-     * @return Options
+     * @return tuple(mixed, Options)
      */
-    public static function prepareRequest(?string $method, ?string $url, Options $options, ?Options $defaultOptions, bool $allowExtraOptions = false): Options
+    public static function prepareRequest(?string $method, ?string $url, Options $options, ?Options $defaultOptions, bool $allowExtraOptions = false)
     {
         self::$emptyDefaults = new Options();
 
@@ -33,7 +33,7 @@ class HttpClientTrait
         }
 
         if ($defaultOptions){
-            $options = self::mergeDefaultOptions($options, $defaultOptions, $allowExtraOptions);
+            $options = self::mergeDefaultOptions($options, $defaultOptions);
         }
 
         if (Options::isset($options->getJson())) {
@@ -55,22 +55,17 @@ class HttpClientTrait
         if (Options::isset($options->getBody())) {
             if (
                 \is_array($options->getBody())
-                && (!is_bool($nHeaderContentType = $options->getNormalizedHeader('content-type')) ? (
-                    $nHeaderContentType !== [] ? (
-                        Options::isset($nHeaderContentType[0])
-                        || !strpos($nHeaderContentType[0], 'application/x-www-form-urlencoded')
-                    ) : true
-                ) : true)
+                && (Options::isset($elem = $options->getElementNormalizedHeader('content-type', 0)) ? !strpos($elem, 'application/x-www-form-urlencoded') : true)
             ) {
                 $options->setNormalizedHeader('content-type', ['Content-Type: application/x-www-form-urlencoded']);
             }
 
             #ifndef KPHP
             if (is_string($body = $options->getBody())
-                && ((string) strlen($body) !== substr(($h = !is_bool($nHeaderContentType) ? ($nHeaderContentType !== [] ? (Options::isset($nHeaderContentType[0]) ? $nHeaderContentType[0] : ''): '') : ''), 16))
+                && ((string) strlen($body) !== substr($h = $options->getElementNormalizedHeader('content-length', 0) ?? '', 16))
                 && ('' !== $h || '' !== $body)
             ) {
-                if ('chunked' === substr((!is_bool($nTransferEncoding = $options->getNormalizedHeader('transfer-encoding')) ? ($nTransferEncoding !== [] ? (Options::isset($nTransferEncoding[0]) ? $nTransferEncoding[0] : ''): '') : ''), \strlen('Transfer-Encoding: '))){
+                if ('chunked' ===  substr($options->getElementNormalizedHeader('transfer-encoding', 0) ?? '', \strlen('Transfer-Encoding: '))){
                     $options->setNormalizedHeader('transfer-encoding', []);
                     $options->setBody(self::dechunk($body));
                 }
@@ -85,8 +80,8 @@ class HttpClientTrait
         }
 
         if (Options::isset($options->getAuthBearer())){
-            if (preg_match('{[^\x21-\x7E]}', $options['auth_bearer'])) {
-                throw new InvalidArgumentException('Invalid character found in option "auth_bearer": '.json_encode($options['auth_bearer']).'.');
+            if (preg_match('{[^\x21-\x7E]}', $authBearer = $options->getAuthBearer())) {
+                throw new InvalidArgumentException('Invalid character found in option "auth_bearer": '.json_encode($authBearer).'.');
             }
         }
 
@@ -94,7 +89,22 @@ class HttpClientTrait
             throw new InvalidArgumentException('Define either the "auth_basic" or the "auth_bearer" option, setting both is not supported.');
         }
 
-        return $options;
+        if (null !== $url){
+            if ((Options::isset($options->getAuthBasic())) && !(Options::isset($options->getNormalizedHeader('authorization')))){
+                $options->setNormalizedHeader('authorization', ['Authorization: Basic '.base64_encode($options->getAuthBasic())]);
+            }
+            if ((Options::isset($options->getAuthBearer())) && !(Options::isset($options->getNormalizedHeader('authorization')))) {
+                $options->setNormalizedHeader('authorization', ['Authorization: Bearer '.$options->getAuthBearer()]);
+            }
+            $options->setAuthBasic('');
+            $options->setAuthBearer('');
+            $baseUri = self::parseUrl($options->getBaseUri());
+            $tUrl = self::parseUrl($url, $baseUri);
+            //$url = self::resolveUrl($url, $options['base_uri'], $defaultOptions['query'] ?? []);
+            return tuple($tUrl, $options);
+        }
+
+        return tuple($url, $options);
     }
 
     /** @return mixed */
@@ -157,12 +167,12 @@ class HttpClientTrait
         return $nValue;
     }
 
-    public static function mergeDefaultOptions(Options $options, Options $defaultOptions, bool $allowExtraOptions = false): Options
+    public static function mergeDefaultOptions(Options $options, Options $defaultOptions): Options
     {
         $options->setNormalizedHeaders(self::normalizeHeaders($options->getHeaders()));
 
-        if (Options::isset($defaultOptions->getHeaders())) {
-            $options->setNormalizedHeaders($options->getNormalizedHeaders() + self::normalizeHeaders($defaultOptions->getHeaders()));
+        if (Options::isset($dHeaders = $defaultOptions->getHeaders())) {
+            $options->setNormalizedHeaders($options->getNormalizedHeaders() + self::normalizeHeaders($dHeaders));
         }
 
         /** @var array<int, array<string>> $tempHeaders */
@@ -220,6 +230,12 @@ class HttpClientTrait
             $options->setExtra($options->getExtra() + $tempExtra);
         }
 
+        if ($resolve = $defaultOptions->getResolve() ?? false){
+            foreach ($resolve as $k=>$v){
+                $options->setResolve($options->getResolve() + [substr(self::parseUrl('http://'.$k)['authority'], 2) => $v]);
+            }
+        }
+
         return $options;
     }
 
@@ -254,7 +270,7 @@ class HttpClientTrait
     //работает
     /**
      * @param string $url
-     * @param array<string> $query
+     * @param mixed $query
      * @param array<string, int> $allowedSchemes
      * @return mixed
      * @throws \Exception
@@ -278,9 +294,9 @@ class HttpClientTrait
 
         // записываем значение порта или 0, если его нет в url-запросе
         $port = $parts['port'] ?? 0;
-
+        var_dump('this is scheme:' . (string)$parts['scheme']);
         // если url-запрос содержит протокол подключения (http или https)
-        /** @var string|null $scheme */
+        /** @var ?string $scheme */
         $scheme = (string)$parts['scheme'] ?? null;
         if (null !== $scheme) {
             // если используемый параметр есть в словаре поддерживаемых протоколов, то всё ок, иначе ошибка
@@ -333,7 +349,7 @@ class HttpClientTrait
     // работает
     /**
      * @param string $queryString
-     * @param string[] $queryArray
+     * @param mixed $queryArray
      * @param bool $replace
      * @return string
      */
