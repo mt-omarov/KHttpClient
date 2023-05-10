@@ -3,7 +3,6 @@
 namespace Kaa\HttpClient\Components;
 class Options
 {
-
     const NULL = null;
 
     static array $fields = [
@@ -28,8 +27,8 @@ class Options
 
     private string $proxy = '';
     private string $noProxy = '';
-    private float $timeOut = 0;
-    private float $maxDuration = 0;
+    private float $timeOut = -1;
+    private float $maxDuration = -1;
     private string $bindTo = '0';
 
 
@@ -89,6 +88,11 @@ class Options
     {
         $this->authNtml = $authNtml;
         return $this;
+    }
+
+    public function getAuthNtml()
+    {
+        return $this->authNtml;
     }
 
     public function getAuthBasic(): string
@@ -275,6 +279,12 @@ class Options
     public function getHeaders(): array
     {
         return $this->headers;
+    }
+
+    public function addToHeaders(string $header): self
+    {
+        $this->headers[] = $header;
+        return $this;
     }
 
     /** @param array<string, string> $headers */
@@ -472,6 +482,9 @@ class Options
         }
         elseif (is_string($option)){
             return $option !== '';
+        }
+        elseif (is_int($option)){
+            return $option !== -1;
         }
         else return ($option !== null);
     }
