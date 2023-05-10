@@ -5,7 +5,7 @@ use Kaa\HttpClient\Components\Exception\TransportException;
 
 require_once __DIR__.'/PredefinedConstants.php';
 
-class HttpClientTrait
+class HttpClientAbstract
 {
     public static int $CHUNK_SIZE = 16372;
     private static Options $emptyDefaults;
@@ -101,9 +101,15 @@ class HttpClientTrait
             $baseUri = self::parseUrl($options->getBaseUri());
             $tUrl = self::parseUrl($url, $baseUri);
             //$url = self::resolveUrl($url, $options['base_uri'], $defaultOptions['query'] ?? []);
+            #ifndef KPHP
+            return [$tUrl, $options];
+            #endif
             return tuple($tUrl, $options);
         }
 
+        #ifndef KPHP
+        return [$url, $options];
+        #endif
         return tuple($url, $options);
     }
 
