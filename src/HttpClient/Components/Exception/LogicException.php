@@ -1,4 +1,4 @@
 <?php
 
-namespace SPL;
+namespace Kaa\HttpClient\Components\Exception;
 class LogicException extends \Exception {}

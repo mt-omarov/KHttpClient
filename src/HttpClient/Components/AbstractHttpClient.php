@@ -5,7 +5,7 @@ use Kaa\HttpClient\Components\Exception\TransportException;
 
 require_once __DIR__.'/PredefinedConstants.php';
 
-class HttpClientAbstract
+class AbstractHttpClient
 {
     public static int $CHUNK_SIZE = 16372;
     private static Options $emptyDefaults;
