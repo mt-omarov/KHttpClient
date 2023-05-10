@@ -11,21 +11,30 @@ class CurlMultiHandle extends CurlHandle
 
     /**
      * @param int $option
-     * @param int $value
+     * @param mixed $value
      * @return bool
      */
-    public function curlSetopt(int $option, mixed $value): bool
+    public function curlSetOpt(int $option, $value): bool
     {
         return curl_multi_setopt($this->handle, $option, $value);
     }
 
     /**
      * @param int $handle
-     * @return int
+     * @return false|int
      */
-    public function removeMultiHandle($handle): int
+    public function curlMultiRemoveHandle($handle)
     {
         return curl_multi_remove_handle($this->handle, $handle);
+    }
+
+    /**
+     * @param int $handle
+     * @return int|false
+     */
+    public function curlMultiAddHandle($handle)
+    {
+        return curl_multi_add_handle($this->handle, $handle);
     }
 
     public function curlClose(): void
@@ -35,10 +44,27 @@ class CurlMultiHandle extends CurlHandle
 
     /**
      * @param int $active
-     * @return int
+     * @return false|int
      */
     public function curlMultiExec(&$active): int
     {
         return curl_multi_exec($this->handle, $active);
+    }
+
+    /**
+     * @return int[]|false
+     */
+    public function curlMultiInfoRead(int &$queuedMessages)
+    {
+        return $queuedMessages == -1 ? curl_multi_info_read($this->handle) : curl_multi_info_read($this->handle, $queuedMessages);
+    }
+
+    /**
+     * @param int $errorCode
+     * @return string|null
+     */
+    public static function curlMultiStrError(int $errorCode)
+    {
+        return curl_multi_strerror($errorCode);
     }
 }

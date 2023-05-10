@@ -6,9 +6,9 @@ class CurlHandle
 {
     /** @var int $handle */
     protected $handle;
-    public function __construct()
+    public function __construct(?string $url = null, ?int $handle = null)
     {
-        $this->handle = curl_init();
+        $handle ? $this->handle = $handle : $this->handle = curl_init($url);
     }
 
     /**
@@ -21,10 +21,10 @@ class CurlHandle
 
     /**
      * @param int $option
-     * @param int $value
+     * @param mixed $value
      * @return bool
      */
-    public function curlSetopt(int $option, mixed $value): bool
+    public function curlSetOpt(int $option, $value): bool
     {
         return curl_setopt($this->handle, $option, $value);
     }
@@ -32,5 +32,10 @@ class CurlHandle
     public function curlClose(): void
     {
         curl_close($this->handle);
+    }
+
+    public function getInfo(?int $option = null)
+    {
+        return curl_getinfo($this->handle, $option);
     }
 }
