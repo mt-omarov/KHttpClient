@@ -37,6 +37,14 @@ class CurlMultiHandle extends CurlHandle
         return curl_multi_add_handle($this->handle, $handle);
     }
 
+    /**
+     * @return int|false
+     */
+    public function curlMultiSelect(float $timeout)
+    {
+        return curl_multi_select($this->handle, $timeout);
+    }
+
     public function curlClose(): void
     {
         curl_multi_close($this->handle);
