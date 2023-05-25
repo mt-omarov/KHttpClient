@@ -29,6 +29,16 @@ class CurlHandle
         return curl_setopt($this->handle, $option, $value);
     }
 
+//    public function curlPause(int $flag): int
+//    {
+//        return curl_pause($this->handle, $flag);
+//    }
+
+    public function curlSetOptArray(array $optins): bool
+    {
+        return curl_setopt_array($this->handle, $optins);
+    }
+
     public function curlClose(): void
     {
         curl_close($this->handle);
