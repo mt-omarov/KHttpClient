@@ -8,12 +8,18 @@ final class PushedResponse
 
     /** @var string[] */
     public array $requestHeaders;
-    public array $parentOptions = [];
+    public Options $parentOptions;
 
     /** @var CurlHandle */
     public $handle;
 
-    public function __construct(CurlResponse $response, array $requestHeaders, array $parentOptions, $handle)
+    /**
+     * @param CurlResponse $response
+     * @param array $requestHeaders
+     * @param Options $parentOptions
+     * @param CurlHandle $handle
+     */
+    public function __construct(CurlResponse $response, array $requestHeaders, Options $parentOptions, $handle)
     {
         $this->response = $response;
         $this->requestHeaders = $requestHeaders;
