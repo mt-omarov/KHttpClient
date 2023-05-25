@@ -16,18 +16,15 @@ class CurlClientState extends ClientState
         $this->handle = new CurlMultiHandle();
         $this->dnsCache = new DnsCache();
         $this->reset();
-
-        $this->handle->curlSetOpt(\CURLMOPT_PIPELINING, \CURLPIPE_MULTIPLEX);
-        $maxHostConnections = $this->handle->curlSetOpt(\CURLMOPT_MAX_HOST_CONNECTIONS, 0 < $maxHostConnections ? $maxHostConnections : \PHP_INT_MAX) ? 0 : $maxHostConnections;
-        $this->handle->curlSetOpt(\CURLMOPT_MAXCONNECTS, $maxHostConnections);
-
-        if (0 >= $maxPendingPushes) {
-            return;
+        if (\defined('CURLPIPE_MULTIPLEX')) {
+            $this->handle->curlSetOpt(\CURLMOPT_PIPELINING, \CURLPIPE_MULTIPLEX);
         }
-
-        // Неизвестно, требуется ли производить клонирование во избежание циркулярной зависимости при установке curlSetOpt.
-        // В KPHP отсутствует возможность установки функций через curl_setopt на хендлеры => необходимо реализовать
-        // возможность установки функции для автоматической обработки поступающих от сервера запрос-ответов.
+        if (\defined('CURLMOPT_MAX_HOST_CONNECTIONS')) {
+            $maxHostConnections = $this->handle->curlSetOpt(\CURLMOPT_MAX_HOST_CONNECTIONS, 0 < $maxHostConnections ? $maxHostConnections : \PHP_INT_MAX) ? 0 : $maxHostConnections;
+        }
+        if (\defined('CURLMOPT_MAXCONNECTS') && 0 < $maxHostConnections) {
+            $this->handle->curlSetOpt(\CURLMOPT_MAXCONNECTS, $maxHostConnections);
+        }
     }
 
     public function reset(): void
@@ -41,6 +38,7 @@ class CurlClientState extends ClientState
         $this->dnsCache->evictions = $this->dnsCache->evictions ?: $this->dnsCache->removals;
         $this->dnsCache->removals = $this->dnsCache->hostnames = [];
 
+        // We need to add this functionality to runtime of KPHP.
         //$this->handle->curlSetOpt(CURLMOPT_PUSHFUNCTION, null);
         $active = 0;
         while (CURLM_CALL_MULTI_PERFORM === $this->handle->curlMultiExec($active));
