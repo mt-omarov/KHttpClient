@@ -3,6 +3,7 @@
 namespace Kaa\HttpClient\Components;
 use Kaa\HttpClient\Contracts\ChunkInterface;
 use Exception;
+use Throwable;
 use Kaa\HttpClient\Components\Exception\TransportException;
 use Kaa\HttpClient\Components\Exception\TimeoutException;
 
@@ -11,9 +12,9 @@ class ErrorChunk implements ChunkInterface
     private bool $didThrow = false;
     private int $offset;
     private string $errorMessage;
-    private Exception $error;
+    private Throwable $error;
 
-    public function __construct(int $offset, ?Exception $error = null, ?string $errorMessage = null)
+    public function __construct(int $offset, ?Throwable $error = null, ?string $errorMessage = null)
     {
         $this->offset = $offset;
 

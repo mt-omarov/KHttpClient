@@ -17,4 +17,6 @@ interface ChunkInterface
     public function getOffset(): int;
 
     public function getError(): ?string;
+
+    public function didThrow(): bool;
 }
