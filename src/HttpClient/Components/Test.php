@@ -2,9 +2,9 @@
 
 namespace Kaa\HttpClient\Components;
 use Kaa\HttpClient\Contracts\HttpClientInterface;
-use Kaa\HttpClient\Components\HttpClientTrait;
+use Kaa\HttpClient\Components\ExtractedHttpClient;
 
-class Test extends HttpClientTrait implements HttpClientInterface
+class Test extends ExtractedHttpClient implements HttpClientInterface
 {
     public static function testing()
     {
@@ -32,11 +32,30 @@ class Test extends HttpClientTrait implements HttpClientInterface
     public static function phpPredefinedToFile($filename = __DIR__."/PredefinedConstants.php")
     {
         $constants = get_defined_constants(true);
+//        $all = get_defined_constants(false);
+//        $keys = array_keys($constants);
+//        foreach ($keys as $key){
+//            foreach ($constants[$key] as $name => $value){
+//                if ($name == "ZEND_THREAD_SAFE"){
+//                    echo $key;
+//                }
+//            }
+//        }
+
         $kConstants = self::getDefinedKPHP();
         $content = "<?php\n";
-        foreach (array_merge($constants['json'], $constants['curl']) as $name => $value) {
+        foreach (array_merge($constants['json'], $constants['curl'], $constants['standard'], $constants['Core']) as $name => $value) {
             if (in_array($name, $kConstants)) continue;
-            $content .= "define('$name', $value);\n";
+            if (is_string($value)){
+                $content .= "define('$name', '$value');\n";
+            }
+            elseif (is_bool($value)){
+                $content .= sprintf("define('$name', %b);\n", $value);
+            }
+            else{
+                $content .= "define('$name', {$value});\n";
+            }
+
         }
         file_put_contents($filename, $content);
     }
