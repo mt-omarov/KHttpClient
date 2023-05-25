@@ -7,7 +7,7 @@ class Options
 
     static array $fields = [
         'authBasic', 'authBearer', 'query', 'headers', 'normalizedHeaders', 'proxy',
-        'noProxy', 'timeOut', 'maxDuration', 'bindTo' , 'userData', 'maxRedirects',
+        'noProxy', 'timeout', 'maxDuration', 'bindTo' , 'userData', 'maxRedirects',
         'httpVersion', 'baseUri', 'buffer', 'onProgress', 'resolve', 'json', 'body'];
 
     /** @var mixed $peerFingerprint */
@@ -19,7 +19,7 @@ class Options
     /** @var string[] $query */
     private array $query = [];
 
-    /** @var array<string, string> $headers */
+    /** @var string[] $headers */
     private array $headers = [];
 
     /** @var array<string, array<string>> $normalizedHeaders */
@@ -27,9 +27,11 @@ class Options
 
     private string $proxy = '';
     private string $noProxy = '';
-    private float $timeOut = -1;
+    private float $timeout = -1;
     private float $maxDuration = -1;
     private string $bindTo = '0';
+    private mixed $localCert = null;
+    private mixed $localPk = null;
 
 
     /** @var mixed $userData  */
@@ -58,9 +60,30 @@ class Options
     private $authNtml = null;
 
     /** @return mixed */
+    public function getLocalPk()
+    {
+        return $this->localPk;
+    }
+
+    /** @return mixed */
+    public function getLocalCert()
+    {
+        return $this->localCert;
+    }
+
+    /** @return mixed */
     public function getPeerFingerprint()
     {
         return $this->peerFingerprint;
+    }
+
+    public function getPeerFingerprintElement(string $key)
+    {
+        if (null === $this->peerFingerprint) return self::NULL;
+        if (array_key_exists($key, $this->peerFingerprint)) {
+            return $this->peerFingerprint[$key];
+        }
+        else return self::NULL;
     }
 
     /** @param mixed $fingerprint */
@@ -223,14 +246,14 @@ class Options
         return $this;
     }
 
-    public function getTimeOut(): float
+    public function getTimeout(): float
     {
-        return $this->timeOut;
+        return $this->timeout;
     }
 
-    public function setTimeOut(float $timeOut): self
+    public function setTimeout(float $timeout): self
     {
-        $this->timeOut = $timeOut;
+        $this->timeout = $timeout;
         return $this;
     }
 
@@ -274,7 +297,7 @@ class Options
     }
 
     /**
-     * @return array<string, string>
+     * @return string[]
      */
     public function getHeaders(): array
     {
@@ -287,7 +310,7 @@ class Options
         return $this;
     }
 
-    /** @param array<string, string> $headers */
+    /** @param string[] $headers */
     public function setHeaders(array $headers):self
     {
         $this->headers = $headers;
@@ -380,7 +403,7 @@ class Options
     {
         foreach (self::$fields as $field)
         {
-            // если левый "массив" опций не установлен, используй правый
+            // if an element of the lOptions is not set, then use the right
             switch ($field){
                 case ("authBasic"):
                     if (!self::isset($lOptions->getAuthBasic()))
@@ -395,7 +418,7 @@ class Options
                         $lOptions->setQuery($rOptions->getQuery());
                     break;
                 case ("headers"):
-                    if (!self::isset($lOptions->getQuery()))
+                    if (!self::isset($lOptions->getHeaders()))
                         $lOptions->setHeaders($rOptions->getHeaders());
                     break;
                 case ("normalizedHeaders"):
@@ -410,9 +433,9 @@ class Options
                     if (!self::isset($lOptions->getNoProxy()))
                         $lOptions->setNoProxy($rOptions->getNoProxy());
                     break;
-                case ("timeOut"):
-                    if (!self::isset($lOptions->getTimeOut()))
-                        $lOptions->setTimeOut($rOptions->getTimeOut());
+                case ("timeout"):
+                    if (!self::isset($lOptions->getTimeout()))
+                        $lOptions->setTimeout($rOptions->getTimeout());
                     break;
                 case ("maxDuration"):
                     if (!self::isset($lOptions->getMaxDuration()))
@@ -467,18 +490,7 @@ class Options
     public static function isset($option): bool
     {
         if (is_array($option)){
-            #ifndef KPHP
-            if (is_array(reset($option)))
-            {
-                return ($option !== [[]]);
-            }
-            else return ($option !== []);
-            #endif
-
-            if (is_array(array_first_value($option))){
-                return ($option !== [[]]);
-            }
-            else return ($option !== []);
+            return ($option !== []);
         }
         elseif (is_string($option)){
             return $option !== '';
@@ -517,7 +529,7 @@ class Options
                     var_dump($this->getNoProxy());
                     break;
                 case ("timeOut"):
-                    var_dump($this->getTimeOut());
+                    var_dump($this->getTimeout());
                     break;
                 case ("maxDuration"):
                     var_dump($this->getMaxDuration());
