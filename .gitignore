@@ -4,3 +4,8 @@ composer.lock
 .idea/
 kphp_out/
 DopTest.php
+temp*
+Test.php
+TestingTest.php
+ffilibs/
+debugBuffer

@@ -25,11 +25,11 @@ class StreamIterator
 
     private bool $isNewResponse;
 
-    private CurlClientState $multi;                 // current multiHandle element of current $runningResponses array element
+    private CurlClientState $multi;             // current multiHandle element of current $runningResponses array element
     private CurlResponse $currentResponse;      // current element of $runningResponses->responses array. Equal to $runningResponses[$currentRunningResponseIndex]->responses[$responsesKeys[$currentResponsesKeysIndex]]
-    /** @var ?int[] $responsesKeys  */
+    /** @var ?int[] $responsesKeys */
     private array $responsesKeys;               // array of all $runningResponses[$currentRunningResponseIndex]->responses keys, because responses array is not indexed sequentially
-    private int $currentResponsesKeysIndex;     // current index of $responsesKeys array
+    private int $currentResponsesKeysIndex;
 
     private int $currentResponseKey;            // copy of $responsesKeys[$currentResponsesKeysIndex] value
     private int $currentRunningResponsesIndex;  // current index of $runningResponses array
@@ -37,6 +37,11 @@ class StreamIterator
     private int $functionIndex;
     private ?ChunkInterface $chunk;
 
+    /**
+     * @param array<CurlResponse> $responses
+     * @param float|null $timeout
+     * @throws InvalidArgumentException
+     */
     public function __construct(array $responses, ?float $timeout = null)
     {
         $this->responses = $responses;
@@ -56,7 +61,13 @@ class StreamIterator
         $this->timeoutMax = 0;
         $this->timeoutMin = $this->timeout ?? INF;
 
-        $this->currentRunningResponsesIndex = (int) array_first_key($this->runningResponses) ?: -1;
+        if (defined("IS_PHP")) {
+            #ifndef KPHP
+            $this->currentRunningResponsesIndex = (int) array_key_first($this->runningResponses) ?: -1;
+            #endif
+        } else {
+            $this->currentRunningResponsesIndex = (int) array_first_key($this->runningResponses) ?: -1;
+        }
 
         // if currentRunningResponsesIndex === -1, than there is no runningResponses and we should execute.
         if ($this->currentRunningResponsesIndex === -1) {
@@ -66,12 +77,31 @@ class StreamIterator
         $this->multi = $this->runningResponses[$this->currentRunningResponsesIndex]->getMulti();
         CurlResponse::perform($this->multi, $this->runningResponses[$this->currentRunningResponsesIndex]->responses);
 
-        $this->responsesKeys = array_keys_as_ints($this->runningResponses[$this->currentRunningResponsesIndex]->responses) ?: null;
+        if (defined("IS_PHP")) {
+            #ifndef KPHP
+            $this->responsesKeys = array_keys(
+                $this->runningResponses[$this->currentRunningResponsesIndex]->responses
+            ) ?: null;
+            #endif
+        } else {
+            $this->responsesKeys = array_keys_as_ints(
+                $this->runningResponses[$this->currentRunningResponsesIndex]->responses
+            ) ?: null;
+        }
+
         if (!$this->responsesKeys) {
             $this->isResponsesEmpty = true;
             return;
         }
-        $this->currentResponsesKeysIndex = array_first_value($this->responsesKeys);
+
+        if (defined("IS_PHP")) {
+            #ifndef KPHP
+            $this->currentResponsesKeysIndex = (int) array_key_first($this->responsesKeys);
+            #endif
+        } else {
+            $this->currentResponsesKeysIndex = (int)array_first_key($this->responsesKeys);
+        }
+
         $this->currentResponseKey = $this->responsesKeys[$this->currentResponsesKeysIndex];
         $this->currentResponse = $this->getResponse($this->currentResponseKey);
         $this->isNewResponse = true;
@@ -87,7 +117,7 @@ class StreamIterator
         if ($this->isResponsesEmpty || $this->isEmpty) {
             return $this->finishResponses();
         }
-        if ($this->isNewResponse){
+        if ($this->isNewResponse) {
             $this->timeoutMax = $this->timeout ?? max($this->timeoutMax, $this->currentResponse->getTimeout());
             $this->timeoutMin = min($this->timeoutMin, $this->currentResponse->getTimeout(), 1);
             $this->chunk = null;
@@ -99,51 +129,55 @@ class StreamIterator
                 if ($this->hasNextResponse()) {
                     // getting an index and a value of the next $runningResponses[$currentRunningResponsesIndex]->responses array element
                     $this->nextResponse();
-                    return $this->stream(); // starting a new iteration with the next element
+                    return $this->stream(); // start a new iteration with the next element
                 } else {
                     return $this->finishResponses();
                 }
             } elseif ($this->elapsedTimeout >= $this->timeoutMax) {
-                $this->multi->handlesActivity[$this->currentResponseKey] = [(new HandleActivity())->setChunk(new ErrorChunk($this->currentResponse->getOffset(), null, sprintf('Idle timeout reached for "%s".', $this->currentResponse->getInfo('url'))))];
-            } else {
-                if ($this->hasNextResponse()) {
+                $this->multi->handlesActivity[$this->currentResponseKey] = [
+                    (new HandleActivity())->setChunk(
+                        new ErrorChunk(
+                            $this->currentResponse->getOffset(),
+                            null,
+                            sprintf('Idle timeout reached for "%s".', $this->currentResponse->getInfo('url'))
+                        )
+                    )
+                ];
+            } elseif ($this->hasNextResponse()) {
                     $this->nextResponse();
                     return $this->stream();
-                } else {
-                    return $this->finishResponses();
-                }
+            } else {
+                return $this->finishResponses();
             }
             $this->isNewResponse = false;
             return $this->stream();
+        } elseif ($this->multi->handlesActivity[$this->currentResponseKey] ?? false) {
+            return $this->getChunk($this->multi->handlesActivity[$this->currentResponseKey]);
         } else {
-            if ($this->multi->handlesActivity[$this->currentResponseKey] ?? false) {
-                return $this->getChunk($this->multi->handlesActivity[$this->currentResponseKey]);
+            unset($this->multi->handlesActivity[$this->currentResponseKey]);
+            if ($this->chunk instanceof ErrorChunk) {
+                if (!$this->chunk->didThrow()) {
+                    // Ensure transport exceptions are always thrown
+                    $this->chunk->getContent();
+                }
+            }
+            if ($this->hasNextResponse()) {
+                $this->nextResponse();
+                $this->isNewResponse = true;
+                return $this->stream();
             } else {
-                unset($this->multi->handlesActivity[$this->currentResponseKey]);
-                if ($this->chunk instanceof ErrorChunk){
-                    if (!$this->chunk->didThrow()) {
-                        // Ensure transport exceptions are always thrown
-                        $this->chunk->getContent();
-                    }
-                }
-                if ($this->hasNextResponse()) {
-                    $this->nextResponse();
-                    $this->isNewResponse = true;
-                    return $this->stream();
-                } else {
-                    return $this->finishResponses();
-                }
+                return $this->finishResponses();
             }
         }
     }
 
     /**
-     * @return ?tuple(CurlResponse, ChunkInterface)
+     * @return tuple(CurlResponse, ChunkInterface)|null
      */
-    private function finishResponses()
+    private function finishResponses(): array|null
     {
         if (!$this->isEmpty) {
-            if (!$this->responses){
+            if (!$this->responses) {
                 unset($this->runningResponses[$this->currentRunningResponsesIndex]);
             }
             $this->multi->handlesActivity = $this->multi->handlesActivity ?: [];
@@ -153,7 +187,11 @@ class StreamIterator
         if ($this->hasNextRunningResponses()) {
             $this->nextRunningResponses();
             $this->multi = $this->runningResponses[$this->currentRunningResponsesIndex]->getMulti();
-            CurlResponse::perform($this->multi, $this->runningResponses[$this->currentRunningResponsesIndex]->responses);
+            CurlResponse::perform(
+                $this->multi,
+                $this->runningResponses[$this->currentRunningResponsesIndex]->responses,
+                $this->currentResponseKey
+            );
             $this->getResponsesOfRunningResponses();
             if ($this->isResponsesEmpty) {
                 return $this->finishResponses();
@@ -168,8 +206,11 @@ class StreamIterator
             if (!$this->runningResponses) {
                 return null;
             }
-            if (-1 === CurlResponse::select($this->multi, min($this->timeoutMin, $this->timeoutMax - $this->elapsedTimeout))) {
-                usleep(min(500, 1E6 * $this->timeoutMin));
+            if (-1 === CurlResponse::select(
+                    $this->multi,
+                    min($this->timeoutMin, $this->timeoutMax - $this->elapsedTimeout)
+                )) {
+                usleep(min(500, $this->timeoutMin > 0 ? 1E6 * $this->timeoutMin : 10));
             }
             $this->elapsedTimeout = microtime(true) - $this->lastActivity;
         }
@@ -178,17 +219,33 @@ class StreamIterator
 
     /**
      * @param HandleActivity[] $handleActivity
-     * @return tuple(CurlResponse, ChunkInterface)
+     * @return tuple(CurlResponse, ChunkInterface)|null
      */
-    public function getChunk(array &$handleActivity)
+    public function getChunk(array &$handleActivity): array|null
     {
-        switch ($this->functionIndex){
-            case (0):
+        switch ($this->functionIndex) {
+            case 0:
                 $this->hasActivity = true;
                 $this->elapsedTimeout = 0;
-                if ($stringChunk = ($tempChunk = array_shift($handleActivity))->getActivityMessage()){
-                    if ('' !== $stringChunk && null !== $this->currentResponse->getConteqntParam() && \strlen($stringChunk) !== fwrite($this->currentResponse->getContentParam(), $stringChunk)) {
-                        $handleActivity = [(new HandleActivity()), (new HandleActivity())->setException(new TransportException(sprintf('Failed writing %d bytes to the response buffer.', \strlen($stringChunk))))];
+                if (($tempChunk = array_shift($handleActivity)) === null) {
+                    return null;
+                } elseif ($stringChunk = $tempChunk->getActivityMessage()) {
+                    if (
+                        '' !== $stringChunk
+                        && null !== $this->currentResponse->getContentParam()
+                        && \strlen($stringChunk) !== fwrite($this->currentResponse->getContentParam(), $stringChunk)
+                    ) {
+                        $handleActivity = [
+                            (new HandleActivity()),
+                            (new HandleActivity())->setException(
+                                new TransportException(
+                                    sprintf(
+                                        'Failed writing %d bytes to the response buffer.',
+                                        \strlen($stringChunk)
+                                    )
+                                )
+                            )
+                        ];
                         $this->getChunk($handleActivity);
                     }
                     $chunkLen = \strlen($stringChunk);
@@ -227,18 +284,19 @@ class StreamIterator
                     // Here should be a code block with a buffering content logic. Add this!!!
                     // .
                     $this->functionIndex = 1;
+                }
+                if (defined('IS_PHP')) {
                     #ifndef KPHP
                     return [$this->currentResponse, $this->chunk];
                     #endif
+                } else {
                     return tuple($this->currentResponse, $this->chunk);
                 }
-                #ifndef KPHP
-                return [$this->currentResponse, $this->chunk];
-                #endif
-                return tuple($this->currentResponse, $this->chunk);
 
             case (1):
-                if ($this->currentResponse->getInitializer() && null === $this->currentResponse->getInfoParam('error')) {
+                if ($this->currentResponse->getInitializer() && null === $this->currentResponse->getInfoParam(
+                        'error'
+                    )) {
                     // Ensure the HTTP status code is always checked
                     $this->currentResponse->getHeaders(true);
                 }
@@ -252,11 +310,12 @@ class StreamIterator
 
     private function nextResponse(): void
     {
-        $this->currentResponseKey = $this->responsesKeys[++$this->currentResponsesKeysIndex];
         if (!$this->responsesKeys) {
             $this->isEmpty = true;
             return;
         }
+        ++$this->currentResponsesKeysIndex;
+        $this->currentResponseKey = $this->responsesKeys[$this->currentResponsesKeysIndex];
         $this->currentResponse = $this->getResponse($this->currentResponseKey);
     }
 
@@ -268,15 +327,33 @@ class StreamIterator
     private function getResponsesOfRunningResponses(): void
     {
         // moving to the next element of $runningResponses array means changing the following params
-        $this->responsesKeys = array_keys_as_ints($this->runningResponses[$this->currentRunningResponsesIndex]->responses) ?: null;
+
+        if (defined('IS_PHP')) {
+            #ifndef KPHP
+            $this->responsesKeys = array_keys(
+                $this->runningResponses[$this->currentRunningResponsesIndex]->responses
+            ) ?: null;
+            #endif
+        } else {
+            $this->responsesKeys = array_keys_as_ints(
+                $this->runningResponses[$this->currentRunningResponsesIndex]->responses
+            ) ?: null;
+        }
+
         if ($this->responsesKeys) {
             $this->isResponsesEmpty = false;
-        }
-        else {
+        } else {
             return;
         }
 
-        $this->currentResponsesKeysIndex = array_first_value($this->responsesKeys);
+        if (defined('IS_PHP')) {
+            #ifndef KPHP
+            $this->currentResponsesKeysIndex = (int)array_first_key($this->responsesKeys);
+            #endif
+        } else {
+            $this->currentResponsesKeysIndex = (int) array_key_first($this->responsesKeys);
+        }
+
         $this->currentResponseKey = $this->responsesKeys[$this->currentResponsesKeysIndex];
     }
 
@@ -295,21 +372,34 @@ class StreamIterator
 
     private function getResponse(?int $key = null): CurlResponse
     {
-        if (!isset($this->currentResponsesKeysIndex)) {
-            throw new InvalidArgumentException(sprintf("Attempt to get a CurlResponse object from an unset runningResponses array in a %s class", self::class));
-        }
-        elseif ($key === null) {
+        if (!isset($this->currentRunningResponsesIndex)) {
+            throw new InvalidArgumentException(
+                sprintf(
+                    "Attempt to get a CurlResponse object from an unset runningResponses array in a %s class\n",
+                    self::class
+                )
+            );
+        } elseif ($key === null) {
             if (!isset($this->currentResponseKey)) {
-                throw new InvalidArgumentException(sprintf("Attempt to get an undefined CurlResponse object from a runningResponses array in a %s class", self::class));
-            }
-            else {
+                throw new InvalidArgumentException(
+                    sprintf(
+                        "Attempt to get an undefined CurlResponse object from a runningResponses array in a %s class\n",
+                        self::class
+                    )
+                );
+            } else {
                 $key = $this->currentResponseKey;
             }
         }
         if (isset($this->runningResponses[$this->currentRunningResponsesIndex]->responses[$key])) {
             return $this->runningResponses[$this->currentRunningResponsesIndex]->responses[$key];
         } else {
-            throw new InvalidArgumentException(sprintf("Attempt to get a non-existed CurlResponse object from a responses array in a %s class", self::class));
+            throw new InvalidArgumentException(
+                sprintf(
+                    "Attempt to get a non-existed CurlResponse object from a responses array in a %s class\n",
+                    self::class
+                )
+            );
         }
     }
 
