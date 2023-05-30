@@ -8,6 +8,12 @@ use Kaa\HttpClient\Contracts\ResponseInterface;
 use Kaa\HttpClient\Components\Exception\InvalidArgumentException;
 use Kaa\HttpClient\Components\Exception\TransportException;
 
+// in order to understand whether KPHP or PHP is being used
+#ifndef KPHP
+define('IS_PHP', true);
+#endif
+
+// use a ExtractedHttpClient class to store response options
 class CurlHttpClient extends ExtractedHttpClient implements HttpClientInterface
 {
     private Options $defaultOptions;
@@ -54,55 +60,6 @@ class CurlHttpClient extends ExtractedHttpClient implements HttpClientInterface
 
         return implode('', $url);
     }
-
-//    /**
-//     * @param mixed $parent
-//     * @param mixed $pushed
-//     * @param array $requestHeaders
-//     * @param int $maxPendingPushes
-//     * @return int
-//     */
-//    private function handlePush($parent, $pushed, array $requestHeaders, int $maxPendingPushes): int
-//    {
-//        $headers = [];
-//        $origin = curl_getinfo($parent, CURLINFO_EFFECTIVE_URL);
-//
-//        foreach ($requestHeaders as $h) {
-//            if (false !== $i = strpos($h, ':', 1)) {
-//                $headers[substr($h, 0, $i)][] = substr($h, 1 + $i);
-//            }
-//        }
-//
-//        if (!isset($headers[':method']) || !isset($headers[':scheme']) || !isset($headers[':authority']) || !isset($headers[':path'])) {
-//            $this->logger && $this->logger->debug(sprintf('Rejecting pushed response from "%s": pushed headers are invalid', $origin));
-//
-//            return CURL_PUSH_DENY;
-//        }
-//
-//        $url = $headers[':scheme'][0].'://'.$headers[':authority'][0];
-//
-//        // curl before 7.65 doesn't validate the pushed ":authority" header,
-//        // but this is a MUST in the HTTP/2 RFC; let's restrict pushes to the original host,
-//        // ignoring domains mentioned as alt-name in the certificate for now (same as curl).
-//        if (0 !== strpos($origin, $url.'/')) {
-//            $this->logger && $this->logger->debug(sprintf('Rejecting pushed response from "%s": server is not authoritative for "%s"', $origin, $url));
-//
-//            return CURL_PUSH_DENY;
-//        }
-//
-//        if ($maxPendingPushes <= \count($this->multi->pushedResponses)) {
-//            $fifoUrl = key($this->multi->pushedResponses);
-//            unset($this->multi->pushedResponses[$fifoUrl]);
-//            $this->logger && $this->logger->debug(sprintf('Evicting oldest pushed response: "%s"', $fifoUrl));
-//        }
-//
-//        $url .= $headers[':path'][0];
-//        $this->logger && $this->logger->debug(sprintf('Queueing pushed response: "%s"', $url));
-//
-//        $this->multi->pushedResponses[$url] = new PushedResponse(new CurlResponse($this->multi, $pushed), $headers, $this->multi->openHandles[(int) $parent][1] ?? [], $pushed);
-//
-//        return CURL_PUSH_OK;
-//    }
 
     public function request(string $method, ?string $url, ?Options $options = null): ResponseInterface
     {
