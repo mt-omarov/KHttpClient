@@ -3,7 +3,13 @@ namespace Kaa\HttpClient\Components;
 use Kaa\HttpClient\Components\Exception\InvalidArgumentException;
 use Kaa\HttpClient\Components\Exception\TransportException;
 
-require_once __DIR__.'/PredefinedConstants.php';
+#ifndef KPHP
+if (! defined('IS_PHP')) {
+#endif
+    require_once __DIR__.'/PredefinedConstants.php';
+#ifndef KPHP
+}
+#endif
 
 class ExtractedHttpClient
 {
@@ -23,7 +29,7 @@ class ExtractedHttpClient
         self::$emptyDefaults = new Options();
 
         if (null !== $method) {
-            // здесь проверяется, что метод содержит только буквы верхнего регистра
+            // here it is checked that the method contains only uppercase letters
             if (\strlen($method) !== strspn($method, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ')) {
                 throw new InvalidArgumentException(sprintf('Invalid HTTP method "%s", only uppercase letters are accepted.', $method));
             }
