@@ -4,15 +4,22 @@ namespace Kaa\HttpClient\Components;
 
 class CurlHandle
 {
-    /** @var int $handle */
-    protected $handle;
-    public function __construct(?string $url = null, ?int $handle = null)
+    /** @var int $handle because in KPHP resources are just integers*/
+    protected $handle; // do not specify the type to avoid conflicts between KPHP and PHP
+
+    /**
+     * @param string|null $url
+     * @param int|null $handle again: do not specify the type
+     */
+    public function __construct(?string $url = null, $handle = null)
     {
+        // creates a curl session with url or null or stores the transferred one
         $handle ? $this->handle = $handle : $this->handle = curl_init($url);
     }
 
     /**
-     * @return int
+     * @return int KPHP will figure out
+     * that it is an integer type, and php will figure out that it is a resource
      */
     public function getHandle()
     {
@@ -21,18 +28,13 @@ class CurlHandle
 
     /**
      * @param int $option
-     * @param mixed $value
+     * @param mixed $value but KPHP cannot yet store event handlers (functions) to handle HTTP/2
      * @return bool
      */
     public function curlSetOpt(int $option, $value): bool
     {
         return curl_setopt($this->handle, $option, $value);
     }
-
-//    public function curlPause(int $flag): int
-//    {
-//        return curl_pause($this->handle, $flag);
-//    }
 
     public function curlSetOptArray(array $optins): bool
     {
