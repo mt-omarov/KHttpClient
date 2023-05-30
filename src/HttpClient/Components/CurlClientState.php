@@ -4,6 +4,7 @@ namespace Kaa\HttpClient\Components;
 
 class CurlClientState extends ClientState
 {
+    // instead of using raw resource type, which is an int in KPHP, use a CurlHandle child class
     public ?CurlMultiHandle $handle;
 
     /** @var PushedResponse[] */
@@ -15,7 +16,7 @@ class CurlClientState extends ClientState
     {
         $this->handle = new CurlMultiHandle();
         $this->dnsCache = new DnsCache();
-        $this->reset();
+        $this->reset(); // needs to clear states
         if (\defined('CURLPIPE_MULTIPLEX')) {
             $this->handle->curlSetOpt(\CURLMOPT_PIPELINING, \CURLPIPE_MULTIPLEX);
         }
@@ -71,24 +72,24 @@ class CurlClientState extends ClientState
         $url = $headers[':scheme'][0].'://'.$headers[':authority'][0];
 
         if (!str_starts_with($origin, $url.'/')) {
+            // for now, omitting the logging work
             //$this->logger?->debug(sprintf('Rejecting pushed response from "%s": server is not authoritative for "%s"', $origin, $url));
             return \CURL_PUSH_DENY;
         }
 
-        // Опущена работа с массивом $this->pushedResponses ввиду отсутствия функционала получения индекса через key().
-        // Нужно проработать передачу текущего элемента массива в функцию.
+        // The $this->pushedResponses array is omitted due to the lack of functionality to get the index via key().
+        // There is a need to redo the function and pass the key of the current element as a parameter
 
-//        if ($maxPendingPushes <= \count($this->pushedResponses)) {
-//            $fifoUrl = key($this->pushedResponses);
-//            unset($this->pushedResponses[$fifoUrl]);
-//            $this->logger?->debug(sprintf('Evicting oldest pushed response: "%s"', $fifoUrl));
-//        }
+        //if ($maxPendingPushes <= \count($this->pushedResponses)) {
+        //    $fifoUrl = key($this->pushedResponses);
+        //    unset($this->pushedResponses[$fifoUrl]);
+        //    $this->logger?->debug(sprintf('Evicting oldest pushed response: "%s"', $fifoUrl));
+        //}
 
         $url .= $headers[':path'][0];
         //$this->logger?->debug(sprintf('Queueing pushed response: "%s"', $url));
 
-        // Опущено использование $this->openHandles из родительского класса.
-        // Нужно разобраться с данным полем, указать тип и предназначение.
+        // The use of $this->openHandles from the parent class is omitted.
         //$this->pushedResponses[$url] = new PushedResponse(new CurlResponse($this, $pushed), $headers, $this->openHandles[(int) $parent][1] ?? [], $pushed);
 
         return \CURL_PUSH_OK;
