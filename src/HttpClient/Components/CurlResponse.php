@@ -64,12 +64,12 @@ class CurlResponse implements ResponseInterface
             throw new InvalidArgumentException(sprintf("Incorrect %s constructor call, one of the required parameters CurlHandle | string url was not passed.", self::class));
         }
 
-        // попытка использовать FFI для создания временного файла через временную директорию
+        // an attempt to use FFI for creating a temporary file via temporary directory
         //BoostFilesystem::load();
         //$libboost = new BoostFilesystem();
         //$this->debugBuffer = tempnam($libboost->SysGetTempDirPath(), "temp");
 
-        // попытка использовать файл и направить вывод об ошибках потока в него
+        // attempt to use file and forward error outputs of stream to it
         //$this->debugBuffer = fopen('debugBuffer', 'w+');
         //$ch->curlSetOpt(CURLOPT_VERBOSE, true);
         //$ch->curlSetOpt(CURLOPT_STDERR, $this->debugBuffer); //отсутствует в KPHP
@@ -80,7 +80,7 @@ class CurlResponse implements ResponseInterface
 
         $this->id = $id = (int) $ch->getHandle();
         //$this->shouldBuffer = $options['buffer'] ?? true;
-        $this->timeout = $options ? $options->getTimeout() : $this->timeout;
+        $this->timeout = $options ? $options->getTimeout() !== -1 ?  $options->getTimeout() : 0 : $this->timeout;
         $this->info['http_method'] = $method;
         $this->info['user_data'] = $options ? $options->getUserData() : null;
         $this->info['start_time'] = $this->info['start_time'] ?? microtime(true);
@@ -90,6 +90,7 @@ class CurlResponse implements ResponseInterface
             $ch->curlSetOpt(CURLOPT_PRIVATE, \in_array($method, ['GET', 'HEAD', 'OPTIONS', 'TRACE'], true) && 1.0 < (float)($options->getHttpVersion() ?? 1.1) ? 'H2' : 'H0');
         }
 
+        // there is no implementation of curl_pause function yet in KPHP
 //        $ch->curlPause(CURLPAUSE_CONT);
 //        $redirectHeaders = [];
 //        if (0 < $options->getMaxRedirects()) {
@@ -108,8 +109,16 @@ class CurlResponse implements ResponseInterface
         };
 
         // Schedule the request in a non-blocking way
-        $multi->openHandles[$id] = tuple($ch, $options);
+        // $multi->openHandles[$id] = tuple($ch, $options);
         $multi->handle->curlMultiAddHandle($ch->getHandle());
+    }
+
+    public function getHandleId() {
+        return $this->handle->getHandle();
+    }
+
+    public function getMulti() {
+        return $this->multi;
     }
 
     public function getInitializer()
@@ -244,13 +253,16 @@ class CurlResponse implements ResponseInterface
 
         try {
             if (($response->initializer)($response)) {
-                $iterator = new StreamIterator([$response], -0.0);
+                $iterator = new StreamIterator([$response], 0.0);
                 while ($iterator->hasResponses()) {
+                    var_dump('1');
                     $tuple = $iterator->stream();
-                    if ($tuple) {
+                    if ($tuple !== null) {
                         $chunk = $tuple[1];
-                        if ($chunk->isFirst()) {
-                            break;
+                        if ($chunk !== null) {
+                            if ($chunk->isFirst()) {
+                                break;
+                            }
                         }
                     }
                 }
@@ -600,14 +612,14 @@ class CurlResponse implements ResponseInterface
             return;
         }
         $this->multi->handle->curlMultiRemoveHandle($this->handle->getHandle());
-        $this->handle->curlSetOptArray([
-            CURLOPT_NOPROGRESS => true,
-            CURLOPT_PROGRESSFUNCTION => null,
-            CURLOPT_HEADERFUNCTION => null,
-            CURLOPT_WRITEFUNCTION => null,
-            CURLOPT_READFUNCTION => null,
-            CURLOPT_INFILE => null,
-        ]);
+//        $this->handle->curlSetOptArray([
+//            CURLOPT_NOPROGRESS => true,
+//            CURLOPT_PROGRESSFUNCTION => null,
+//            CURLOPT_HEADERFUNCTION => null,
+//            CURLOPT_WRITEFUNCTION => null,
+//            CURLOPT_READFUNCTION => null,
+//            CURLOPT_INFILE => null,
+//        ]);
     }
 
     /**
@@ -616,13 +628,19 @@ class CurlResponse implements ResponseInterface
      * @param int|null $index
      * @return void
      */
-    public static function perform(ClientState $multi, array &$responses, ?int $index = null): void
+    public static function perform(CurlClientState $multi, array &$responses, ?int $index = null): void
     {
         if (self::$performing) {
             if ($responses !== []) {
-                $response = $index ? $responses[$index] : array_first_value($responses);
+                if (defined('IS_PHP')) {
+                    #ifndef KPHP
+                    $response = $index ? $responses[$index] : $responses[array_key_first($responses)];
+                    #endif
+                } else {
+                    $response = $index ? $responses[$index] : array_first_value($responses);
+                }
                 $multi->handlesActivity[(int)$response->handle->getHandle()][] = null;
-                //$multi->handlesActivity[(int)$response->handle->getHandle()][] = (new HandleActivity())->setError(new TransportException(sprintf('Userland callback cannot use the client nor the response while processing "%s".', $response->getInfo((string) CURLINFO_EFFECTIVE_URL))));
+                $multi->handlesActivity[(int)$response->handle->getHandle()][] = (new HandleActivity())->setException(new TransportException(sprintf('Userland callback cannot use the client nor the response while processing "%s".', $response->getInfo((string) CURLINFO_EFFECTIVE_URL))));
             }
             return;
         }
@@ -637,8 +655,8 @@ class CurlResponse implements ResponseInterface
             $tMsgCount = -1;
             while ($info = $multi->handle->curlMultiInfoRead($tMsgCount)) {
                 $result = $info['result'];
-                $id = $info['handle'];
-                $ch = new CurlHandle(null, $info['handle']);
+                $id = $info['handle']; // for PHP the type of handle must be resource, but in KPHP – int
+                $ch = new CurlHandle(null, $id);
                 $waitFor = $ch->getInfo(CURLINFO_PRIVATE) ?: '_0';
 
                 if (\in_array($result, [CURLE_SEND_ERROR, CURLE_RECV_ERROR, /*CURLE_HTTP2*/ 16, /*CURLE_HTTP2_STREAM*/ 92], true) && $waitFor[1] && 'C' !== $waitFor[0]) {
@@ -653,11 +671,19 @@ class CurlResponse implements ResponseInterface
                         continue;
                     }
                 }
-                $multi->handlesActivity[$id][] = null;
-                $multi->handlesActivity[$id][] = \in_array(
-                    $result, [CURLE_OK, CURLE_TOO_MANY_REDIRECTS], true) ||
-                    '_0' === $waitFor ||
-                    $ch->getInfo( CURLINFO_SIZE_DOWNLOAD) === $ch->getInfo(CURLINFO_CONTENT_LENGTH_DOWNLOAD) ? null : (new HandleActivity())->setException(new TransportException(sprintf('%s for "%s".', CurlMultiHandle::curlMultiStrError($result), $ch->getInfo(CURLINFO_EFFECTIVE_URL)))
+                $multi->handlesActivity[(int) $id][] = null;
+                $multi->handlesActivity[(int) $id][] = (
+                    \in_array($result, [CURLE_OK, CURLE_TOO_MANY_REDIRECTS], true)
+                    || '_0' === $waitFor
+                    || $ch->getInfo( CURLINFO_SIZE_DOWNLOAD) === $ch->getInfo(CURLINFO_CONTENT_LENGTH_DOWNLOAD)
+                ) ? null : (new HandleActivity())->setException
+                (
+                    new TransportException(sprintf
+                    (
+                        '%s for "%s".',
+                        CurlMultiHandle::curlMultiStrError($result),
+                        $ch->getInfo(CURLINFO_EFFECTIVE_URL)
+                    ))
                 );
             }
         } catch (TransportException $e) {
